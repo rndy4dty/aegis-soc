@@ -138,10 +138,10 @@ def persistence_artifacts(
         cypher="""
             MATCH (e:Entity)
             WHERE (
-                e.properties IS NOT NULL
-                AND e.properties.is_persistence_key = true
+                (e.properties IS NOT NULL
+                 AND e.properties.is_persistence_key = true)
+                OR "persistence" IN coalesce(e.tags, [])
             )
-            OR "persistence" IN e.tags
             AND ($tenant_id IS NULL OR e.tenant_id = $tenant_id)
             RETURN e
             ORDER BY e.value
