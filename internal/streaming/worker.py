@@ -18,6 +18,7 @@ Design:
 
 from __future__ import annotations
 
+import os
 import signal
 import time
 from dataclasses import dataclass, field
@@ -91,6 +92,10 @@ class StreamWorker:
         self._title_prefix = title_prefix
         self._stats = WorkerStats()
         self._stop = False
+        self._graph_enabled = (
+            os.environ.get("AEGIS_WORKER_GRAPH", "1") != "0"
+        )
+        self._graph_service: Any = None
 
     # ------------------------------------------------------------------
     # Properties
@@ -190,6 +195,32 @@ class StreamWorker:
     # Flush + investigate
     # ------------------------------------------------------------------
 
+    def _save_to_graph(
+        self,
+        batch: list[Event],
+        result: InvestigationResult,
+    ) -> None:
+        """Push batch entities ke Neo4j. Fail-soft, opt-out via env."""
+        if not self._graph_enabled:
+            return
+        try:
+            from internal.graph.graph_store import build_graph
+            from internal.storage.graph import GraphService
+        except ImportError as exc:
+            self._stats.errors.append(f"graph import: {exc}")
+            return
+        try:
+            if self._graph_service is None:
+                self._graph_service = GraphService()
+            graph = build_graph(batch)
+            self._graph_service.save_graph(
+                graph,
+                case_id=getattr(result, "case_id", None),
+                tenant_id=getattr(result, "tenant_id", None),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._stats.errors.append(f"graph save: {exc}")
+
     def _flush_and_investigate(
         self,
         *,
@@ -205,6 +236,7 @@ class StreamWorker:
             try:
                 result = self._investigate_batch(batch)
                 self._storage.save(result)
+                self._save_to_graph(batch, result)
                 self._stats.investigations_created += 1
                 created += 1
 
@@ -338,6 +370,7 @@ class StreamWorker:
             try:
                 result = self._investigate_batch(batch)
                 self._storage.save(result)
+                self._save_to_graph(batch, result)
                 self._stats.investigations_created += 1
                 created += 1
             except Exception as exc:  # noqa: BLE001
