@@ -5,7 +5,7 @@ Usage:
     python -m cli investigate \\
         --events alerts.json \\
         --title "Application Shimming" \\
-        --format markdown
+        --format markdown --ai --provider auto
 """
 
 from __future__ import annotations
@@ -71,7 +71,16 @@ def build_parser() -> argparse.ArgumentParser:
     inv.add_argument(
         "--ai",
         action="store_true",
-        help="Aktifkan AI narrative (rule engine deterministic)",
+        help="Aktifkan AI narrative",
+    )
+    inv.add_argument(
+        "--provider",
+        choices=("rule", "ollama", "cloud", "auto"),
+        default="rule",
+        help=(
+            "AI provider untuk narrative "
+            "(default: rule — deterministic, offline)"
+        ),
     )
 
     return parser
@@ -125,13 +134,7 @@ def cmd_investigate(args: argparse.Namespace) -> int:
     # -- AI narrative (opsional) --------------------------------------
     narrative: str | None = None
     if getattr(args, "ai", False):
-        try:
-            from internal.ai.router import narrate
-            narrative = narrate(result)
-            _info("AI narrative generated", args)
-        except Exception as exc:  # noqa: BLE001
-            _err(f"AI narrative failed: {exc}")
-            narrative = None
+        narrative = _generate_narrative(result, args)
 
     # -- Render ------------------------------------------------------
     if args.format == "json":
@@ -151,11 +154,12 @@ def cmd_investigate(args: argparse.Namespace) -> int:
                 + text
             )
 
-    else:  # "text"
+    else:  # text
         text = report.to_text()
         if narrative:
             text = narrative + "\n\n" + text
 
+    # -- Output ------------------------------------------------------
     if args.output is not None:
         try:
             args.output.write_text(text, encoding="utf-8")
@@ -167,6 +171,57 @@ def cmd_investigate(args: argparse.Namespace) -> int:
         print(text)
 
     return 0
+
+
+def _generate_narrative(
+    result, args: argparse.Namespace
+) -> str | None:
+    """
+    Hasilkan AI narrative berdasarkan flag --provider.
+
+    Provider chain:
+    - rule  : rule engine saja (offline, deterministic)
+    - ollama: local LLM
+    - cloud : cloud LLM
+    - auto  : cloud -> ollama -> rule
+    """
+    try:
+        from internal.ai import AIRouter
+        from internal.ai.llm import (
+            CloudLLMProvider,
+            LocalLLMProvider,
+        )
+    except ImportError as exc:
+        _err(f"AI layer not available: {exc}")
+        return None
+
+    provider_name = getattr(args, "provider", "rule")
+
+    providers = []
+    if provider_name == "ollama":
+        providers = [LocalLLMProvider()]
+    elif provider_name == "cloud":
+        providers = [CloudLLMProvider()]
+    elif provider_name == "auto":
+        providers = [
+            CloudLLMProvider(),
+            LocalLLMProvider(),
+        ]
+    # provider_name == "rule": providers kosong,
+    # AIRouter otomatis pakai RuleEngineProvider
+
+    try:
+        router = AIRouter(providers=providers)
+        narrative = router.narrate(result)
+        used = router.available_providers()
+        _info(
+            f"AI narrative generated (providers: {used})",
+            args,
+        )
+        return narrative
+    except Exception as exc:  # noqa: BLE001
+        _err(f"AI narrative failed: {exc}")
+        return None
 
 
 def _info(message: str, args: argparse.Namespace) -> None:
