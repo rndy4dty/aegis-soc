@@ -1,0 +1,13 @@
+apiVersion: v2
+name: aegis-soc
+description: AegisSOC - Evidence-Grounded AI Investigation Engine
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - soc
+  - incident-response
+  - ai
+maintainers:
+  - name: AegisSOC

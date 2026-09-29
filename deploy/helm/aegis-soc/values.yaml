@@ -1,0 +1,73 @@
+# Default values for AegisSOC Helm chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+api:
+  enabled: true
+  image:
+    repository: aegis-soc-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  env:
+    AEGIS_LOG_LEVEL: "INFO"
+  secrets:
+    AEGIS_API_KEY: ""
+    AEGIS_CLOUD_LLM_API_KEY: ""
+    VIRUSTOTAL_API_KEY: ""
+    OTX_API_KEY: ""
+    MISP_URL: ""
+    MISP_API_KEY: ""
+
+dashboard:
+  enabled: true
+  image:
+    repository: aegis-soc-dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8501
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: aegis-soc.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: api
+  tls: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
