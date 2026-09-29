@@ -30,6 +30,7 @@ from internal.investigation.investigation_engine import (
 )
 from internal.streaming.batcher import EventBatcher
 from internal.streaming.bus import StreamBus, StreamMessage, get_bus
+from internal.notifications import NotificationRouter
 from internal.storage import StorageService
 from pkg.models.event import Event
 
@@ -74,6 +75,7 @@ class StreamWorker:
         bus: StreamBus | None = None,
         storage: StorageService | None = None,
         batcher: EventBatcher | None = None,
+        notifier: NotificationRouter | None = None,
         stream: str = DEFAULT_STREAM,
         group: str = DEFAULT_GROUP,
         consumer: str = DEFAULT_CONSUMER,
@@ -82,6 +84,7 @@ class StreamWorker:
         self._bus = bus or get_bus()
         self._storage = storage or StorageService()
         self._batcher = batcher or EventBatcher()
+        self._notifier = notifier
         self._stream = stream
         self._group = group
         self._consumer = consumer
@@ -204,6 +207,14 @@ class StreamWorker:
                 self._storage.save(result)
                 self._stats.investigations_created += 1
                 created += 1
+
+                # Notifikasi (opsional, fail-soft)
+                if self._notifier is not None:
+                    try:
+                        self._notifier.dispatch(result)
+                    except Exception:  # noqa: BLE001
+                        pass
+
             except Exception as exc:  # noqa: BLE001
                 self._stats.errors.append(
                     f"investigate batch: {exc}"
