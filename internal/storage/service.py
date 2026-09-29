@@ -40,6 +40,12 @@ class StorageService:
             row = repo.save(result)
             return row.case_id
 
+    def get(self, case_id: str) -> InvestigationRow | None:
+        """Ambil row by case_id."""
+        with self._db.session() as session:
+            repo = InvestigationRepository(session)
+            return repo.get(case_id)
+
     def load(
         self, case_id: str
     ) -> InvestigationResult | None:
