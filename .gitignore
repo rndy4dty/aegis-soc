@@ -1,14 +1,42 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
-.env
-.env.*
-data/raw/*
-data/normalized/*
-data/evidence/*
-data/investigations/*
-data/vector_db/*
-!.gitkeep
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Testing
 .pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# AegisSOC
+output/
+_draft/
+data/
+*.log
+
+# Example outputs
+examples/report.json
+examples/report.md
