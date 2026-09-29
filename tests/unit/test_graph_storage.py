@@ -210,7 +210,30 @@ def test_neighbors_invalid_entity(service, tenant_id):
     )
     assert result == []
 
+def test_neighbors_excludes_case_node(service, tenant_id):
+    """Neighbors harus hanya Entity, bukan Case."""
+    graph = build_graph([make_event("E-1")])
+    case_id = f"CASE-{uuid4().hex[:8]}"
+    service.save_graph(
+        graph, case_id=case_id, tenant_id=tenant_id
+    )
 
+    entities = list(graph.entities)
+    proc = next(
+        (e for e in entities if e.entity_type.value == "process"),
+        None,
+    )
+    if proc is None:
+        pytest.skip("no process entity")
+
+    neighbors = service.neighbors(
+        proc.entity_id, tenant_id=tenant_id,
+    )
+    # Semua neighbor harus punya entity_type
+    for n in neighbors:
+        assert n["entity_type"] is not None, (
+            f"neighbor {n} is not an Entity"
+        )
 # ===========================================================================
 # Path Finding
 # ===========================================================================

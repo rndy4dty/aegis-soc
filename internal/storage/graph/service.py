@@ -224,21 +224,20 @@ class GraphService:
         rel_type : filter by relationship type (case-insensitive)
         """
         if direction == "out":
-            pattern = "(e)-[r]->(n)"
+            pattern = "(e)-[r]->(n:Entity)"
         elif direction == "in":
-            pattern = "(e)<-[r]-(n)"
+            pattern = "(e)<-[r]-(n:Entity)"
         else:
-            pattern = "(e)-[r]-(n)"
+            pattern = "(e)-[r]-(n:Entity)"
 
         if rel_type:
             rel_pattern = f"[r:{rel_type.upper()}]"
             if direction == "out":
-                pattern = f"(e)-{rel_pattern}->(n)"
+                pattern = f"(e)-{rel_pattern}->(n:Entity)"
             elif direction == "in":
-                pattern = f"(e)<-{rel_pattern}-(n)"
+                pattern = f"(e)<-{rel_pattern}-(n:Entity)"
             else:
-                pattern = f"(e)-{rel_pattern}-(n)"
-
+                pattern = f"(e)-{rel_pattern}-(n:Entity)"
         where_clauses = ["e.entity_id = $entity_id"]
         if tenant_id:
             where_clauses.append("n.tenant_id = $tenant_id")
