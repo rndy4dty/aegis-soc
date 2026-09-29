@@ -1,21 +1,24 @@
 """
 Data ingestion layer.
-
-Collectors membaca event dari berbagai sumber dan mengubahnya
-menjadi canonical Event.
-
-- WazuhCollector    : parse Wazuh alert JSON
-- SysmonCollector   : parse Sysmon event JSON
-- FileSource        : baca dari file / directory
 """
 
 from internal.collector.base import (
     Collector,
     CollectorResult,
 )
-from internal.collector.wazuh import WazuhCollector
-from internal.collector.sysmon import SysmonCollector
 from internal.collector.file_source import FileSource
+from internal.collector.sysmon import SysmonCollector
+from internal.collector.wazuh import WazuhCollector
+from internal.collector.wazuh_api import (
+    WazuhAPIClient,
+    WazuhAlert,
+)
+from internal.collector.wazuh_poller import (
+    DEFAULT_INITIAL_LOOKBACK,
+    DEFAULT_POLL_INTERVAL,
+    PollerStats,
+    WazuhPoller,
+)
 
 __all__ = [
     "Collector",
@@ -23,4 +26,10 @@ __all__ = [
     "WazuhCollector",
     "SysmonCollector",
     "FileSource",
+    "WazuhAPIClient",
+    "WazuhAlert",
+    "WazuhPoller",
+    "PollerStats",
+    "DEFAULT_POLL_INTERVAL",
+    "DEFAULT_INITIAL_LOOKBACK",
 ]
