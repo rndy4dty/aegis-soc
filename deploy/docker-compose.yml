@@ -1,0 +1,13 @@
+services:
+  aegis:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: aegis-soc:latest
+    container_name: aegis-soc
+    volumes:
+      - ../examples:/data:ro
+      - ../output:/output
+    working_dir: /app
+    restart: "no"
+    command: ["--help"]
