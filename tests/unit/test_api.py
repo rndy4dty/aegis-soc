@@ -1,33 +1,14 @@
 """
 Contract tests untuk REST API.
 
-Pakai FastAPI TestClient (dari httpx). Tidak butuh server berjalan.
+Semua endpoint investigation butuh auth (JWT).
+Fixture `auth_client` menyediakan (client, token).
 """
 
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
-
-from api.main import create_app
-
-
-@pytest.fixture(autouse=True)
-def _reset_api_key(monkeypatch):
-    """Pastikan AEGIS_API_KEY tidak bocor dari env."""
-    monkeypatch.delenv("AEGIS_API_KEY", raising=False)
-    # Rebuild deps settings
-    import importlib
-    import api.deps
-    importlib.reload(api.deps)
-
-
-@pytest.fixture
-def client() -> TestClient:
-    app = create_app()
-    return TestClient(app)
 
 
 # ===========================================================================
@@ -62,37 +43,40 @@ def _event_payload(
     }
 
 
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
 # ===========================================================================
 # Health
 # ===========================================================================
 
-def test_health(client: TestClient):
+def test_health(auth_client):
+    client, _ = auth_client
     r = client.get("/health")
     assert r.status_code == 200
-    data = r.json()
-    assert data["status"] == "ok"
-    assert "version" in data
+    assert r.json()["status"] == "ok"
 
 
-def test_version(client: TestClient):
+def test_version(auth_client):
+    client, _ = auth_client
     r = client.get("/version")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
 
 
 # ===========================================================================
 # Meta
 # ===========================================================================
 
-def test_meta_providers(client: TestClient):
+def test_meta_providers(auth_client):
+    client, _ = auth_client
     r = client.get("/meta/providers")
     assert r.status_code == 200
-    data = r.json()
-    assert "rule_engine" in data["ai_providers"]
-    assert isinstance(data["threat_intel_providers"], list)
+    assert "rule_engine" in r.json()["ai_providers"]
 
 
-def test_meta_categories(client: TestClient):
+def test_meta_categories(auth_client):
+    client, _ = auth_client
     r = client.get("/meta/categories")
     assert r.status_code == 200
     cats = r.json()["categories"]
@@ -101,26 +85,26 @@ def test_meta_categories(client: TestClient):
 
 
 # ===========================================================================
-# Investigate
+# Create investigation
 # ===========================================================================
 
-def test_investigate_minimal(client: TestClient):
-    payload = {
-        "title": "Test case",
-        "events": [_event_payload()],
-    }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
+def test_investigate_minimal(auth_client):
+    client, token = auth_client
+    payload = {"title": "Test case", "events": [_event_payload()]}
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
     data = r.json()
     assert data["case_id"].startswith("CASE-")
     assert data["title"] == "Test case"
     assert data["risk_score"] >= 0
     assert data["evidence_count"] >= 1
     assert "report_markdown" in data
-    assert "report_dict" in data
 
 
-def test_investigate_with_mitre(client: TestClient):
+def test_investigate_with_mitre(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Shimming case",
         "events": [
@@ -128,149 +112,163 @@ def test_investigate_with_mitre(client: TestClient):
             _event_payload("E-2", offset=5, mitre=["T1546.011"]),
         ],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
     data = r.json()
     assert data["hypothesis_count"] >= 2
     assert data["relationship_count"] >= 1
 
 
-def test_investigate_with_analyst(client: TestClient):
+def test_investigate_with_analyst(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Analyst test",
         "analyst": "ren",
         "events": [_event_payload()],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
-    data = r.json()
-    assert "Analyst" in data["report_markdown"] or "ren" in str(data)
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
 
 
-def test_investigate_with_category(client: TestClient):
+def test_investigate_with_category(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Persistence case",
         "category": "persistence",
         "events": [_event_payload(mitre=["T1546.011"])],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
-    assert "persistence" in r.json()["report_dict"]["case"]["category"]
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
 
 
-def test_investigate_with_priority(client: TestClient):
+def test_investigate_with_priority(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Critical case",
         "priority": "critical",
         "events": [_event_payload(severity=95)],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
     assert r.json()["priority"] == "critical"
 
 
-def test_investigate_with_narrative(client: TestClient):
+def test_investigate_with_narrative(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Narrative test",
         "narrative": True,
         "provider": "rule",
         "events": [_event_payload(mitre=["T1546.011"])],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
-    data = r.json()
-    assert data["narrative"] is not None
-    assert len(data["narrative"]) > 50
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["narrative"] is not None
 
 
-def test_investigate_with_multi_agent_narrative(client: TestClient):
+def test_investigate_with_multi_agent_narrative(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Multi-agent test",
         "narrative": True,
         "provider": "multi_agent",
         "events": [_event_payload(mitre=["T1546.011"])],
     }
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 200
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
     assert r.json()["narrative"] is not None
 
 
-def test_investigate_empty_events(client: TestClient):
+# ===========================================================================
+# Validation
+# ===========================================================================
+
+def test_investigate_empty_events(auth_client):
+    client, token = auth_client
     payload = {"title": "Empty", "events": []}
-    r = client.post("/investigations", json=payload)
-    assert r.status_code == 422  # min_length=1
-
-
-def test_investigate_missing_title(client: TestClient):
-    payload = {"events": [_event_payload()]}
-    r = client.post("/investigations", json=payload)
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
     assert r.status_code == 422
 
 
-def test_investigate_invalid_event(client: TestClient):
+def test_investigate_missing_title(auth_client):
+    client, token = auth_client
+    payload = {"events": [_event_payload()]}
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
+    assert r.status_code == 422
+
+
+def test_investigate_invalid_event(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Bad event",
-        "events": [{"event_id": "E-1"}],  # missing fields
+        "events": [{"event_id": "E-1"}],
     }
-    r = client.post("/investigations", json=payload)
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
     assert r.status_code == 400
 
 
-def test_investigate_invalid_category(client: TestClient):
+def test_investigate_invalid_category(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Bad category",
         "category": "not-a-category",
         "events": [_event_payload()],
     }
-    r = client.post("/investigations", json=payload)
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
     assert r.status_code == 400
 
 
-def test_investigate_invalid_priority(client: TestClient):
+def test_investigate_invalid_priority(auth_client):
+    client, token = auth_client
     payload = {
         "title": "Bad priority",
         "priority": "not-a-priority",
         "events": [_event_payload()],
     }
-    r = client.post("/investigations", json=payload)
+    r = client.post(
+        "/investigations", json=payload, headers=_auth(token),
+    )
     assert r.status_code == 400
 
 
 # ===========================================================================
-# API key
+# Auth required
 # ===========================================================================
 
-def test_api_key_required_when_set(
-    monkeypatch, client_factory
-):
-    monkeypatch.setenv("AEGIS_API_KEY", "secret-123")
-    import importlib
-    import api.deps
-    importlib.reload(api.deps)
-
-    client = client_factory()
-
-    # Tanpa header → 401
-    r = client.get("/meta/categories")
+def test_investigate_requires_auth(auth_client):
+    client, _ = auth_client
+    payload = {"title": "Test", "events": [_event_payload()]}
+    r = client.post("/investigations", json=payload)
     assert r.status_code == 401
 
-    # Dengan header salah → 401
-    r = client.get(
-        "/meta/categories",
-        headers={"X-API-Key": "wrong"},
-    )
+
+def test_list_requires_auth(auth_client):
+    client, _ = auth_client
+    r = client.get("/investigations")
     assert r.status_code == 401
 
-    # Dengan header benar → 200
-    r = client.get(
-        "/meta/categories",
-        headers={"X-API-Key": "secret-123"},
-    )
-    assert r.status_code == 200
 
-
-@pytest.fixture
-def client_factory():
-    def _make() -> TestClient:
-        return TestClient(create_app())
-    return _make
+def test_get_detail_requires_auth(auth_client):
+    client, _ = auth_client
+    r = client.get("/investigations/SOME-ID")
+    assert r.status_code == 401

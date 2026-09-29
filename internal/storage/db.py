@@ -79,8 +79,8 @@ class Database:
         if create_tables:
             # Import models dulu supaya terdaftar di metadata
             from internal.storage import models  # noqa: F401
+            from internal.auth import models as _auth_models  # noqa: F401
             Base.metadata.create_all(self._engine)
-
     # ------------------------------------------------------------------
 
     @property
