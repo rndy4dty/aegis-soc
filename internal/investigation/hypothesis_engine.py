@@ -133,8 +133,22 @@ MITRE_HYPOTHESIS_TEMPLATES: dict[str, MitreTemplate] = {
             "beacon interval analysis",
         ),
     ),
+    "T1003.001": MitreTemplate(
+        technique="T1003.001",
+        main_statement=(
+            "Possible credential access via LSASS memory dumping"
+        ),
+        counter_statement=(
+            "Legitimate diagnostic tool access to LSASS by "
+            "authorized security software"
+        ),
+        missing_evidence=(
+            "LSASS handle access rights used",
+            "caller process signature and reputation",
+            "target credential store dump analysis",
+        ),
+    ),
 }
-
 
 GENERIC_TEMPLATE_PREFIX = "Possible activity related to"
 

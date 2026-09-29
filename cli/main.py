@@ -83,6 +83,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # -- scenario -----------------------------------------------------
+    sc = subparsers.add_parser(
+        "scenario",
+        help="List or run built-in attack scenarios",
+    )
+    sc.add_argument(
+        "action",
+        choices=("list", "run"),
+        help="list: tampilkan scenario; run: jalankan scenario",
+    )
+    sc.add_argument(
+        "name",
+        nargs="?",
+        default=None,
+        help="Nama scenario (untuk action=run)",
+    )
+    sc.add_argument(
+        "--format",
+        choices=("markdown", "json", "text"),
+        default="text",
+    )
+    sc.add_argument(
+        "--ai",
+        action="store_true",
+    )
+    sc.add_argument(
+        "--provider",
+        choices=("rule", "multi_agent"),
+        default="rule",
+    )
+    sc.add_argument("--output", type=Path, default=None)
+
     return parser
 
 
@@ -238,9 +270,112 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "investigate":
         return cmd_investigate(args)
+    if args.command == "scenario":
+        return cmd_scenario(args)
 
     parser.print_help(sys.stderr)
     return 2
 
+def cmd_scenario(args: argparse.Namespace) -> int:
+    """
+    List atau run built-in attack scenario.
+    """
+    from internal.simulation import (
+        ATTACK_SCENARIOS,
+        build_scenario,
+        list_scenarios,
+    )
+
+    # -- list ---------------------------------------------------------
+    if args.action == "list":
+        names = list_scenarios()
+        print("Available attack scenarios:")
+        print()
+        for name in names:
+            s = ATTACK_SCENARIOS[name]
+            print(f"  {name:<22} {s.title}")
+            print(f"  {'':22} MITRE: {', '.join(s.mitre_techniques)}")
+            print(f"  {'':22} Category: {s.category}")
+            print()
+        return 0
+
+    # -- run ----------------------------------------------------------
+    if args.action == "run":
+        if not args.name:
+            _err("scenario name required for action=run")
+            return 1
+
+        try:
+            scenario = ATTACK_SCENARIOS[args.name]
+            events = build_scenario(args.name)
+        except KeyError as exc:
+            _err(str(exc))
+            return 1
+
+        _info(f"Scenario: {scenario.title}", args)
+        _info(f"Events: {len(events)}", args)
+
+        from internal.investigation.investigation_engine import (
+            investigate,
+        )
+        from internal.reporter.report import InvestigatorReport
+
+        result = investigate(
+            events,
+            title=scenario.title,
+        )
+
+        _info(
+            f"Risk: {result.risk_score}/100 "
+            f"(confidence {result.confidence:.2f})",
+            args,
+        )
+
+        # -- AI narrative (opsional) ----------------------------------
+        narrative: str | None = None
+        if getattr(args, "ai", False):
+            try:
+                from internal.ai import AIRouter, MultiAgentProvider
+                providers = []
+                if args.provider == "multi_agent":
+                    providers = [MultiAgentProvider()]
+                router = AIRouter(providers=providers)
+                narrative = router.narrate(result)
+            except Exception as exc:  # noqa: BLE001
+                _err(f"AI narrative failed: {exc}")
+
+        # -- Render ---------------------------------------------------
+        report = InvestigatorReport(result)
+
+        if args.format == "json":
+            import json
+            data = report.to_dict()
+            if narrative:
+                data["ai_narrative"] = narrative
+            text = json.dumps(data, indent=2, default=str)
+        elif args.format == "markdown":
+            text = report.to_markdown()
+            if narrative:
+                text = (
+                    "# AI Narrative\n\n"
+                    + narrative
+                    + "\n\n---\n\n"
+                    + text
+                )
+        else:
+            text = report.to_text()
+            if narrative:
+                text = narrative + "\n\n" + text
+
+        if args.output:
+            args.output.write_text(text, encoding="utf-8")
+            _info(f"Written to {args.output}", args)
+        else:
+            print(text)
+
+        return 0
+
+    _err(f"unknown action: {args.action}")
+    return 1
 
 __all__ = ["build_parser", "main", "cmd_investigate"]
