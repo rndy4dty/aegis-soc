@@ -1006,3 +1006,41 @@ def test_debug_relationships_are_marked_debug():
         for edge in edges
     )
 
+"""Regression test: entity_id harus deterministik dari fingerprint."""
+from pkg.models.entity import Entity, EntityType
+
+
+def _make() -> Entity:
+    return Entity(
+        entity_type=EntityType.PROCESS,
+        value="sdbinst.exe",
+        normalized_value="sdbinst.exe|pid:4821",
+        host="win-01",
+    ).with_fingerprint()
+
+
+def test_entity_id_stable_across_instances():
+    """Dua instance dengan identity sama → entity_id sama."""
+    e1 = _make()
+    e2 = _make()
+    assert e1.fingerprint == e2.fingerprint
+    assert e1.entity_id == e2.entity_id
+
+
+def test_entity_id_differs_for_different_identity():
+    """Identity beda → entity_id beda."""
+    e1 = _make()
+    e2 = Entity(
+        entity_type=EntityType.PROCESS,
+        value="powershell.exe",
+        host="win-01",
+    ).with_fingerprint()
+    assert e1.fingerprint != e2.fingerprint
+    assert e1.entity_id != e2.entity_id
+
+
+def test_entity_id_is_uuid_format():
+    """entity_id harus UUID valid (kompatibel Neo4j constraint)."""
+    import uuid
+    e = _make()
+    uuid.UUID(e.entity_id)  # akan raise kalau invalid

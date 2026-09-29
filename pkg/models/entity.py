@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import (
     BaseModel,
@@ -135,6 +135,17 @@ def _normalize_optional_str(value: Any) -> str | None:
 # ===========================================================================
 # Entity
 # ===========================================================================
+
+# =========================================================================
+# Namespace UUID untuk deterministic entity_id.
+#
+# JANGAN diubah setelah dipakai di production — akan mengubah semua
+# entity_id yang sudah ada.
+# =========================================================================
+_AEGIS_ENTITY_NAMESPACE = UUID(
+    "6b8f0d1e-4c2a-4e5b-9d3f-1a7c9e8b5f42"
+)
+
 
 class Entity(BaseModel):
     """
@@ -491,8 +502,18 @@ class Entity(BaseModel):
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
     def with_fingerprint(self) -> "Entity":
+        """
+        Isi fingerprint + derive entity_id deterministik.
+
+        entity_id = UUID5(namespace, fingerprint).
+        Dengan begini, entity dengan identity sama selalu punya
+        entity_id sama, sehingga Neo4j MERGE bekerja sebagai upsert
+        (bukan create duplikat).
+        """
+        fp = self.calculate_fingerprint()
+        eid = str(uuid5(_AEGIS_ENTITY_NAMESPACE, fp))
         return self.model_copy(
-            update={"fingerprint": self.calculate_fingerprint()}
+            update={"fingerprint": fp, "entity_id": eid}
         )
 
     def verify_fingerprint(self) -> bool:
