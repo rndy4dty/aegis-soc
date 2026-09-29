@@ -1,4 +1,5 @@
 
+
 """
 AegisSOC FastAPI app.
 
@@ -17,7 +18,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from api.routers import auth as auth_router
 from api import __version__
 from api.deps import get_settings
 from api.routers import (
@@ -52,9 +53,9 @@ def create_app() -> FastAPI:
     instrument_fastapi(app)
 
     app.include_router(health.router)
+    app.include_router(auth_router.router)
     app.include_router(investigation.router)
     app.include_router(meta.router)
-
     return app
 
 app = create_app()
