@@ -115,6 +115,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sc.add_argument("--output", type=Path, default=None)
 
+    # -- graph --------------------------------------------------------
+    gr = subparsers.add_parser(
+        "graph",
+        help="Jalankan preset Cypher query ke Neo4j",
+    )
+    gr_sub = gr.add_subparsers(dest="graph_action", required=True)
+
+    gr_sub.add_parser("list", help="Daftar preset query")
+
+    gr_run = gr_sub.add_parser("run", help="Jalankan satu preset")
+    gr_run.add_argument("preset", help="nama preset")
+    gr_run.add_argument(
+        "-p", "--param", action="append", default=[],
+        metavar="KEY=VALUE",
+        help="parameter preset (boleh diulang)",
+    )
+    gr_run.add_argument(
+        "--dry-run", action="store_true",
+        help="cetak cypher + params saja, jangan eksekusi",
+    )
     return parser
 
 
@@ -272,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_investigate(args)
     if args.command == "scenario":
         return cmd_scenario(args)
+    if args.command == "graph":
+        return cmd_graph(args)
 
     parser.print_help(sys.stderr)
     return 2
@@ -286,96 +308,94 @@ def cmd_scenario(args: argparse.Namespace) -> int:
         list_scenarios,
     )
 
+def cmd_graph(args: argparse.Namespace) -> int:
+    """List / run preset Cypher query."""
+    from internal.storage.graph.queries import PRESETS
+
     # -- list ---------------------------------------------------------
-    if args.action == "list":
-        names = list_scenarios()
-        print("Available attack scenarios:")
-        print()
-        for name in names:
-            s = ATTACK_SCENARIOS[name]
-            print(f"  {name:<22} {s.title}")
-            print(f"  {'':22} MITRE: {', '.join(s.mitre_techniques)}")
-            print(f"  {'':22} Category: {s.category}")
-            print()
+    if args.graph_action == "list":
+        print(f"{'name':<30} {'category':<12} description")
+        print("-" * 78)
+        for name, factory in PRESETS.items():
+            try:
+                sample = factory("X")
+            except TypeError:
+                sample = factory()
+            print(f"{name:<30} {sample.category:<12} {sample.description}")
         return 0
 
     # -- run ----------------------------------------------------------
-    if args.action == "run":
-        if not args.name:
-            _err("scenario name required for action=run")
-            return 1
+    if args.graph_action == "run":
+        factory = PRESETS.get(args.preset)
+        if factory is None:
+            _err(f"preset tidak dikenal: {args.preset}")
+            _err(f"tersedia: {', '.join(PRESETS)}")
+            return 2
+
+        raw: dict[str, str] = {}
+        for kv in args.param:
+            if "=" not in kv:
+                _err(f"format -p harus key=value, dapat: {kv!r}")
+                return 2
+            k, v = kv.split("=", 1)
+            raw[k.strip()] = v.strip()
 
         try:
-            scenario = ATTACK_SCENARIOS[args.name]
-            events = build_scenario(args.name)
-        except KeyError as exc:
-            _err(str(exc))
+            preset = factory(**raw)
+        except TypeError as exc:
+            _err(f"parameter salah untuk {args.preset}: {exc}")
+            return 2
+
+        # -- dry-run ------------------------------------------------
+        if getattr(args, "dry_run", False):
+            print("\u2500\u2500 cypher \u2500\u2500")
+            print(preset.cypher.strip())
+            print("\u2500\u2500 params \u2500\u2500")
+            for k, v in preset.params.items():
+                print(f"  {k} = {v!r}")
+            return 0
+
+        # -- eksekusi ke Neo4j --------------------------------------
+        from internal.storage.graph.client import Neo4jClient
+
+        client: Neo4jClient | None = None
+        try:
+            client = Neo4jClient(create_indexes=False)
+            rows = client.run(preset.cypher, preset.params)
+        except Exception as exc:  # noqa: BLE001
+            _err(f"Neo4j error: {exc}")
+            if client is not None:
+                _err(f"uri: {client.uri}  db: {client.database}")
+            else:
+                _err("gagal membuat Neo4jClient (cek env AEGIS_NEO4J_*)")
             return 1
+        finally:
+            if client is not None:
+                try:
+                    client.driver.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
-        _info(f"Scenario: {scenario.title}", args)
-        _info(f"Events: {len(events)}", args)
+        if not rows:
+            print("(tidak ada hasil)")
+            return 0
 
-        from internal.investigation.investigation_engine import (
-            investigate,
-        )
-        from internal.reporter.report import InvestigatorReport
-
-        result = investigate(
-            events,
-            title=scenario.title,
-        )
-
-        _info(
-            f"Risk: {result.risk_score}/100 "
-            f"(confidence {result.confidence:.2f})",
-            args,
-        )
-
-        # -- AI narrative (opsional) ----------------------------------
-        narrative: str | None = None
-        if getattr(args, "ai", False):
-            try:
-                from internal.ai import AIRouter, MultiAgentProvider
-                providers = []
-                if args.provider == "multi_agent":
-                    providers = [MultiAgentProvider()]
-                router = AIRouter(providers=providers)
-                narrative = router.narrate(result)
-            except Exception as exc:  # noqa: BLE001
-                _err(f"AI narrative failed: {exc}")
-
-        # -- Render ---------------------------------------------------
-        report = InvestigatorReport(result)
-
-        if args.format == "json":
-            import json
-            data = report.to_dict()
-            if narrative:
-                data["ai_narrative"] = narrative
-            text = json.dumps(data, indent=2, default=str)
-        elif args.format == "markdown":
-            text = report.to_markdown()
-            if narrative:
-                text = (
-                    "# AI Narrative\n\n"
-                    + narrative
-                    + "\n\n---\n\n"
-                    + text
-                )
-        else:
-            text = report.to_text()
-            if narrative:
-                text = narrative + "\n\n" + text
-
-        if args.output:
-            args.output.write_text(text, encoding="utf-8")
-            _info(f"Written to {args.output}", args)
-        else:
-            print(text)
-
+        headers = list(rows[0].keys())
+        print("\t".join(headers))
+        print("-" * 60)
+        for row in rows:
+            print("\t".join(_fmt_cell(row.get(h)) for h in headers))
         return 0
 
-    _err(f"unknown action: {args.action}")
+    _err(f"unknown graph action: {args.graph_action}")
     return 1
+
+
+def _fmt_cell(value: object) -> str:
+    """Format satu cell untuk output tab-separated."""
+    if value is None:
+        return ""
+    return str(value).replace("\t", " ").replace("\n", " ")
+
 
 __all__ = ["build_parser", "main", "cmd_investigate"]

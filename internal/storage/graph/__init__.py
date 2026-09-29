@@ -13,10 +13,13 @@ from internal.storage.graph.client import (
     reset_neo4j,
 )
 from internal.storage.graph.service import GraphService
+from internal.storage.graph.queries import PRESETS, QueryPreset
 
 __all__ = [
     "Neo4jClient",
     "GraphService",
     "get_neo4j",
     "reset_neo4j",
+    "PRESETS",
+    "QueryPreset",
 ]
