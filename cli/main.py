@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inv.add_argument(
         "--provider",
-        choices=("rule", "ollama", "cloud", "auto"),
+        choices=("rule", "multi_agent", "ollama", "cloud", "auto"),
         default="rule",
         help=(
             "AI provider untuk narrative "
@@ -178,12 +178,6 @@ def _generate_narrative(
 ) -> str | None:
     """
     Hasilkan AI narrative berdasarkan flag --provider.
-
-    Provider chain:
-    - rule  : rule engine saja (offline, deterministic)
-    - ollama: local LLM
-    - cloud : cloud LLM
-    - auto  : cloud -> ollama -> rule
     """
     try:
         from internal.ai import AIRouter
@@ -202,10 +196,15 @@ def _generate_narrative(
         providers = [LocalLLMProvider()]
     elif provider_name == "cloud":
         providers = [CloudLLMProvider()]
+    elif provider_name == "multi_agent":
+        from internal.ai import MultiAgentProvider
+        providers = [MultiAgentProvider()]
     elif provider_name == "auto":
+        from internal.ai import MultiAgentProvider
         providers = [
             CloudLLMProvider(),
             LocalLLMProvider(),
+            MultiAgentProvider(),
         ]
     # provider_name == "rule": providers kosong,
     # AIRouter otomatis pakai RuleEngineProvider
