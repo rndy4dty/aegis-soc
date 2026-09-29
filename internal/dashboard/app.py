@@ -19,6 +19,7 @@ from internal.dashboard.components import (
     render_risk,
     render_timeline,
 )
+from internal.dashboard.graph_viz import render_graph
 from internal.dashboard.data import (
     parse_events,
     run_investigation,
@@ -81,10 +82,51 @@ def main() -> None:
             type="primary",
             width="stretch",
         )
-    # -- Main ---------------------------------------------------------
+    # -- Session state init ------------------------------------------
+    if "result" not in st.session_state:
+        st.session_state.result = None
+    if "uploaded_name" not in st.session_state:
+        st.session_state.uploaded_name = None
+
+    # -- Reset kalau file berganti ----------------------------------
+    if (
+        uploaded is not None
+        and uploaded.name != st.session_state.uploaded_name
+    ):
+        st.session_state.uploaded_name = uploaded.name
+        st.session_state.result = None
+
+    # -- Run investigation kalau tombol diklik ----------------------
+    if run and uploaded is not None:
+        try:
+            events = parse_events(uploaded.getvalue())
+        except ValueError as exc:
+            st.error(f"Gagal parsing events: {exc}")
+            st.session_state.result = None
+        else:
+            if not events:
+                st.warning("File tidak berisi event.")
+                st.session_state.result = None
+            else:
+                st.success(f"Loaded {len(events)} event(s).")
+                with st.spinner("Running investigation..."):
+                    try:
+                        st.session_state.result = run_investigation(
+                            events,
+                            title=title or "Investigation",
+                            analyst=analyst or None,
+                            tenant=tenant or None,
+                            category=category,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Investigation failed: {exc}")
+                        st.session_state.result = None
+
+    # -- Kalau belum ada file ---------------------------------------
     if uploaded is None:
         st.info(
-            "Upload JSON file di sidebar, lalu klik **Run investigation**."
+            "Upload JSON file di sidebar, "
+            "lalu klik **Run investigation**."
         )
         st.markdown(
             "Contoh: lihat `examples/application_shimming.json` "
@@ -92,40 +134,17 @@ def main() -> None:
         )
         return
 
-    if not run:
+    # -- Kalau file ada tapi belum diinvestigate --------------------
+    if st.session_state.result is None:
         st.success(
             f"File **{uploaded.name}** siap. "
             "Klik **Run investigation** di sidebar."
         )
         return
 
-    # -- Run ----------------------------------------------------------
-    try:
-        events = parse_events(uploaded.getvalue())
-    except ValueError as exc:
-        st.error(f"Gagal parsing events: {exc}")
-        return
+    # -- Render hasil dari session state ----------------------------
+    result = st.session_state.result
 
-    if not events:
-        st.warning("File tidak berisi event.")
-        return
-
-    st.success(f"Loaded {len(events)} event(s).")
-
-    with st.spinner("Running investigation..."):
-        try:
-            result = run_investigation(
-                events,
-                title=title or "Investigation",
-                analyst=analyst or None,
-                tenant=tenant or None,
-                category=category,
-            )
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"Investigation failed: {exc}")
-            return
-
-    # -- Render -------------------------------------------------------
     render_header(result)
     render_metrics(result)
 
@@ -140,6 +159,10 @@ def main() -> None:
     with col_right:
         render_risk(result)
         render_actions(result)
+
+    st.divider()
+
+    render_graph(result)
 
     st.divider()
 
