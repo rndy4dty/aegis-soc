@@ -68,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
     )
     inv.add_argument("--quiet", action="store_true")
+    inv.add_argument(
+        "--ai",
+        action="store_true",
+        help="Aktifkan AI narrative (rule engine deterministic)",
+    )
 
     return parser
 
@@ -117,17 +122,39 @@ def cmd_investigate(args: argparse.Namespace) -> int:
 
     report = InvestigatorReport(result)
 
-    if args.format == "markdown":
-        text = report.to_markdown()
-    elif args.format == "json":
+    # -- AI narrative (opsional) --------------------------------------
+    narrative: str | None = None
+    if getattr(args, "ai", False):
+        try:
+            from internal.ai.router import narrate
+            narrative = narrate(result)
+            _info("AI narrative generated", args)
+        except Exception as exc:  # noqa: BLE001
+            _err(f"AI narrative failed: {exc}")
+            narrative = None
+
+    # -- Render ------------------------------------------------------
+    if args.format == "json":
         import json
-        text = json.dumps(
-            report.to_dict(),
-            indent=2,
-            default=str,
-        )
-    else:
+        data = report.to_dict()
+        if narrative:
+            data["ai_narrative"] = narrative
+        text = json.dumps(data, indent=2, default=str)
+
+    elif args.format == "markdown":
+        text = report.to_markdown()
+        if narrative:
+            text = (
+                "# AI Narrative\n\n"
+                + narrative
+                + "\n\n---\n\n"
+                + text
+            )
+
+    else:  # "text"
         text = report.to_text()
+        if narrative:
+            text = narrative + "\n\n" + text
 
     if args.output is not None:
         try:

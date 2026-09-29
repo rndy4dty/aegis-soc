@@ -1,0 +1,192 @@
+{
+  "generated_at": "2026-09-28T04:40:21.219502+00:00",
+  "case": {
+    "case_id": "CASE-33ADA6907A34",
+    "title": "Application Shimming Investigation",
+    "description": null,
+    "status": "triaged",
+    "priority": "critical",
+    "category": "unknown",
+    "severity": 85,
+    "analyst": null,
+    "tenant_id": null,
+    "created_at": "2026-09-28T04:40:21.219343+00:00"
+  },
+  "risk": {
+    "score": 45,
+    "confidence": 0.5449999999999999,
+    "breakdown": {
+      "evidence": 40.0,
+      "correlation": 3.28,
+      "hypothesis": 13.75,
+      "penalty": -12.0
+    },
+    "top_contributors": [
+      {
+        "name": "evidence:E-4ee41859000c",
+        "category": "evidence",
+        "contribution": 30.0,
+        "rationale": "critical process: process_creation: sdbinst.exe (PID 4821)"
+      },
+      {
+        "name": "evidence:E-c609d6b2e06c",
+        "category": "evidence",
+        "contribution": 30.0,
+        "rationale": "critical process: process_creation: sdbinst.exe (PID 4821)"
+      },
+      {
+        "name": "hypothesis:H-8725bf4cf5",
+        "category": "hypothesis",
+        "contribution": 13.75,
+        "rationale": "supported hypothesis (confidence 0.55): Possible persistence via Application Shimming"
+      },
+      {
+        "name": "correlation:PAIR-b7f105a704",
+        "category": "correlation",
+        "contribution": 3.28,
+        "rationale": "correlation confidence 0.66 (reasons: same_host,same_user,same_process_name,same_process_id,same_mitre_technique)"
+      }
+    ],
+    "factors": [
+      {
+        "name": "evidence:E-4ee41859000c",
+        "category": "evidence",
+        "contribution": 30.0,
+        "rationale": "critical process: process_creation: sdbinst.exe (PID 4821)"
+      },
+      {
+        "name": "evidence:E-c609d6b2e06c",
+        "category": "evidence",
+        "contribution": 30.0,
+        "rationale": "critical process: process_creation: sdbinst.exe (PID 4821)"
+      },
+      {
+        "name": "correlation:PAIR-b7f105a704",
+        "category": "correlation",
+        "contribution": 3.28,
+        "rationale": "correlation confidence 0.66 (reasons: same_host,same_user,same_process_name,same_process_id,same_mitre_technique)"
+      },
+      {
+        "name": "hypothesis:H-8725bf4cf5",
+        "category": "hypothesis",
+        "contribution": 13.75,
+        "rationale": "supported hypothesis (confidence 0.55): Possible persistence via Application Shimming"
+      },
+      {
+        "name": "penalty:missing_evidence",
+        "category": "penalty",
+        "contribution": -12.0,
+        "rationale": "6 missing evidence item(s) across hypotheses"
+      }
+    ]
+  },
+  "graph": {
+    "entity_count": 5,
+    "relationship_count": 2,
+    "events_processed": 2,
+    "entity_types": {
+      "host": 1,
+      "user": 1,
+      "process": 2,
+      "mitre_technique": 1
+    },
+    "relationship_types": {
+      "run_as": 1,
+      "spawned": 1
+    }
+  },
+  "timeline": [
+    {
+      "evidence_id": "E-4ee41859000c",
+      "event_id": "E-1",
+      "timestamp": "2026-09-26T10:00:00+00:00",
+      "category": "process",
+      "event_type": "process_creation",
+      "host": "WIN-01",
+      "severity": 85,
+      "strength": "critical",
+      "title": "process_creation: sdbinst.exe (PID 4821)"
+    },
+    {
+      "evidence_id": "E-c609d6b2e06c",
+      "event_id": "E-2",
+      "timestamp": "2026-09-26T10:00:05+00:00",
+      "category": "process",
+      "event_type": "process_creation",
+      "host": "WIN-01",
+      "severity": 85,
+      "strength": "critical",
+      "title": "process_creation: sdbinst.exe (PID 4821)"
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothesis_id": "H-8725bf4cf5",
+      "type": "main",
+      "statement": "Possible persistence via Application Shimming",
+      "status": "supported",
+      "confidence": 0.55,
+      "supporting_evidence_ids": [
+        "E-4ee41859000c",
+        "E-c609d6b2e06c"
+      ],
+      "contradicting_evidence_ids": [],
+      "missing_evidence": [
+        "initiating parent process lineage",
+        "related registry modifications",
+        "shim database modification"
+      ],
+      "mitre_techniques": [
+        "T1546.011"
+      ],
+      "rationale": "MITRE technique T1546.011 detected across evidence: E-4ee41859000c, E-c609d6b2e06c."
+    },
+    {
+      "hypothesis_id": "H-ef0b6bfada",
+      "type": "counter",
+      "statement": "Legitimate Windows compatibility activity via PcaSvc or installer framework",
+      "status": "proposed",
+      "confidence": 0.0,
+      "supporting_evidence_ids": [],
+      "contradicting_evidence_ids": [],
+      "missing_evidence": [
+        "initiating parent process lineage",
+        "related registry modifications",
+        "shim database modification"
+      ],
+      "mitre_techniques": [
+        "T1546.011"
+      ],
+      "rationale": "Counter to MAIN hypothesis: Possible persistence via Application Shimming."
+    },
+    {
+      "hypothesis_id": "H-242bacda79",
+      "type": "sub",
+      "statement": "Correlated event cluster indicates a single activity",
+      "status": "proposed",
+      "confidence": 0.0,
+      "supporting_evidence_ids": [],
+      "contradicting_evidence_ids": [],
+      "missing_evidence": [],
+      "mitre_techniques": [],
+      "rationale": "Correlation PAIR-b7f105a704 (reasons: same_host, same_user, same_process_name, same_process_id, same_mitre_technique)."
+    }
+  ],
+  "evidence_summary": {
+    "total": 2,
+    "by_strength": {
+      "critical": 2
+    },
+    "by_type": {
+      "process": 2
+    }
+  },
+  "recommended_actions": [
+    "Inspect sdbinst.exe command line and parent process",
+    "Review Shim Database modifications under HKLM\\...\\AppCompatFlags",
+    "Check PcaSvc activity around the same time window",
+    "Collect missing evidence: initiating parent process lineage",
+    "Collect missing evidence: related registry modifications",
+    "Collect missing evidence: shim database modification"
+  ]
+}
