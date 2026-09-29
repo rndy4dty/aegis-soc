@@ -1,3 +1,4 @@
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,8 +27,8 @@ services:
       NEO4J_server_memory_heap_max__size: 512m
       NEO4J_server_memory_pagecache_size: 256m
     ports:
-      - "7474:7474"  # Neo4j Browser UI
-      - "7687:7687"  # Bolt protocol
+      - "7474:7474"
+      - "7687:7687"
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
@@ -37,6 +38,21 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
 
   aegis:
     build:
@@ -49,11 +65,14 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       AEGIS_DATABASE_URL: postgresql+psycopg://aegis:aegis@postgres:5432/aegis
       AEGIS_NEO4J_URI: bolt://neo4j:7687
       AEGIS_NEO4J_USER: neo4j
       AEGIS_NEO4J_PASSWORD: aegispassword
+      AEGIS_REDIS_URL: redis://redis:6379/0
     volumes:
       - ../examples:/data:ro
       - ../output:/output
@@ -65,3 +84,4 @@ volumes:
   postgres_data:
   neo4j_data:
   neo4j_logs:
+  redis_data:
