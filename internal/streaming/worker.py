@@ -200,11 +200,10 @@ class StreamWorker:
         batch: list[Event],
         result: InvestigationResult,
     ) -> None:
-        """Push batch entities ke Neo4j. Fail-soft, opt-out via env."""
+        """Push graph hasil investigation ke Neo4j. Fail-soft, opt-out via env."""
         if not self._graph_enabled:
             return
         try:
-            from internal.graph.graph_store import build_graph
             from internal.storage.graph import GraphService
         except ImportError as exc:
             self._stats.errors.append(f"graph import: {exc}")
@@ -212,11 +211,17 @@ class StreamWorker:
         try:
             if self._graph_service is None:
                 self._graph_service = GraphService()
-            graph = build_graph(batch)
+
+            # case_id & tenant_id diambil dari result.case
+            case_id = getattr(result.case, "case_id", None)
+            tenant_id = getattr(result.case, "tenant_id", None)
+
+            # Pakai graph yang sudah dibangun investigation engine
+            # (bukan build_graph ulang)
             self._graph_service.save_graph(
-                graph,
-                case_id=getattr(result, "case_id", None),
-                tenant_id=getattr(result, "tenant_id", None),
+                result.graph,
+                case_id=case_id,
+                tenant_id=tenant_id,
             )
         except Exception as exc:  # noqa: BLE001
             self._stats.errors.append(f"graph save: {exc}")
