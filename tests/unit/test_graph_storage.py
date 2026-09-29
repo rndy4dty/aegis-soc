@@ -54,9 +54,22 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def tenant_id() -> str:
-    """Unique tenant per test -> isolasi."""
-    return f"test-{uuid4().hex[:12]}"
+def tenant_id():
+    """Tenant unik per-test, auto-cleanup di Neo4j setelah selesai."""
+    from internal.storage.graph import Neo4jClient
+
+    t = f"qtest-{uuid4().hex[:12]}"
+    yield t
+    # teardown: hapus semua node tenant ini
+    try:
+        c = Neo4jClient(create_indexes=False)
+        c.run_write(
+            "MATCH (n:Entity {tenant_id: $t}) DETACH DELETE n",
+            {"t": t},
+        )
+        c.driver.close()
+    except Exception:
+        pass
 
 
 @pytest.fixture
