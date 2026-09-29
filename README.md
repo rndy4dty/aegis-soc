@@ -133,6 +133,14 @@ timeline, hypotheses, risk breakdown, AI narrative, dan export.
 
 ![AegisSOC Dashboard](docs/images/aegis.png)
 
+### Dashboard — Investigation Result
+
+Hasil setelah menjalankan investigation: metrics cards (risk score,
+confidence, priority, status), attack timeline, dan risk breakdown.
+
+![AegisSOC Dashboard Result](docs/images/dashboard-result.png)
+
+
 ---
 
 ## Test
