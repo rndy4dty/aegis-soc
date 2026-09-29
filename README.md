@@ -2,15 +2,11 @@
 
 **Deterministic SOC Investigation Engine with Optional AI Enhancement**
 
-AegisSOC transforms raw security events into structured, evidence-based
-investigation cases containing evidence, correlations, hypotheses, risk
-scoring, and analyst-oriented narratives.
+AegisSOC transforms raw security events into structured, evidence-based investigation cases containing **evidence, correlations, hypotheses, risk scoring, and analyst-oriented narratives**.
 
-The core philosophy is **deterministic-first**: the investigation engine
-does not depend on AI or external LLM services. AI is an optional
-enhancement layer that can assist with investigation narratives and
-analysis. The system remains fully functional when AI providers are
-unavailable.
+The core philosophy is **deterministic-first**: the investigation engine does not depend on AI or external LLM services. AI is an optional enhancement layer that can assist with investigation narratives and analysis.
+
+The system remains fully functional when AI providers are unavailable.
 
 ![AegisSOC Dashboard](docs/images/aegis.png)
 
@@ -18,43 +14,54 @@ unavailable.
 
 ## What is AegisSOC?
 
-AegisSOC is an investigation engine designed for SOC workflows. It
-processes security events and produces structured investigation cases
-that can be reviewed, reproduced, and audited.
+AegisSOC is an investigation engine designed for SOC workflows.
 
-Every finding in the investigation is grounded in explicit evidence.
-The system does not generate findings without supporting evidence.
+It processes security events and produces structured investigation cases that can be **reviewed, reproduced, and audited**.
 
-**Pipeline:**
-Raw events (Wazuh, Sysmon, file)
-|
-v
-Canonical Event
-|
-+--> Evidence (content-hashed)
-+--> Entity + Relationship (graph)
-|
-v
-Correlation Engine
-|
-v
-Hypothesis Engine (MAIN + COUNTER + SUB)
-|
-v
-Risk Engine (0-100 with breakdown)
-|
-v
-Investigation Case
-|
-+--> Deterministic Report (always available)
-|
-+--> Optional AI Enhancement (if configured)
+Every finding in the investigation is grounded in explicit evidence. The system does not generate findings without supporting evidence.
 
-text
+### Investigation Pipeline
 
-Note: AI sits **alongside** the investigation pipeline, not inside it.
-The deterministic report is generated independently and remains the
-source of truth.
+```text
+Raw Security Events
+(Wazuh / Sysmon / File / NDJSON)
+                |
+                v
+        Canonical Event Model
+                |
+        +-------+-------+
+        |               |
+        v               v
+    Evidence      Entity & Relationship
+   SHA-256 Hash        Graph
+        |               |
+        +-------+-------+
+                |
+                v
+       Correlation Engine
+                |
+                v
+        Hypothesis Engine
+       MAIN / COUNTER / SUB
+                |
+                v
+           Risk Engine
+        Score: 0 - 100
+        + Breakdown
+                |
+                v
+        Investigation Case
+                |
+        +-------+--------+
+        |                |
+        v                v
+Deterministic Report   Optional AI
+   Always Available    Enhancement
+```
+
+AI sits **alongside the investigation pipeline**, not inside its core decision-making path.
+
+The deterministic investigation pipeline remains the **source of truth** for evidence, correlations, hypotheses, and risk scoring.
 
 ---
 
@@ -62,310 +69,679 @@ source of truth.
 
 To clarify its scope:
 
-- **Not an AI-first SOC** that relies on an LLM as its primary
-  investigation engine.
-- **Not a machine-learning detection system.** Detection is currently
-  rule-based (Sigma-like rules, LOLBin registry).
-- **Not an autonomous response system.** AegisSOC investigates and
-  analyzes; it does not automatically execute response actions.
-- **Not dependent on external AI services.** AI is optional; the
-  deterministic pipeline works without API keys or internet access.
+* **Not an AI-first SOC** that relies on an LLM as its primary investigation engine.
+* **Not a machine-learning detection system.** Detection is currently rule-based using Sigma-like rules and a LOLBin registry.
+* **Not an autonomous response system.** AegisSOC investigates and analyzes security events but does not automatically execute response actions.
+* **Not dependent on external AI services.** AI is optional; the deterministic investigation pipeline works without API keys or internet access.
 
 ---
 
-## Architecture: Deterministic vs AI Layers
+## Architecture
 
-### Deterministic Layer (always active)
+AegisSOC is divided into two major layers:
 
-The investigation engine itself is fully deterministic. Given the same
-input, it produces the same output.
+1. **Deterministic Investigation Layer**
+2. **Optional AI Enhancement Layer**
 
-| Component | Function |
-|---|---|
-| Correlation Engine | Rule-based matching (same host, temporal proximity) |
-| Detection Engine | Sigma-like rules + LOLBin registry |
-| Hypothesis Engine | Template-based hypothesis generation |
-| Risk Engine | Explicit mathematical scoring model |
-| Reporter | Template-based rendering (markdown / JSON / text) |
-| Deterministic Rule Engine | Template-based narrative generation |
+### Deterministic Investigation Layer
 
-All components above are **reproducible** and **auditable**.
+The deterministic layer is always available and does not require an LLM.
 
-### Optional AI Layer
+Given the same normalized input and configuration, the core investigation pipeline is designed to produce reproducible results.
 
-AI providers are opt-in. They add a narrative layer on top of the
-deterministic report.
+| Component                 | Function                                                                  |
+| ------------------------- | ------------------------------------------------------------------------- |
+| Detection Engine          | Rule-based detection using Sigma-like rules and LOLBin registry           |
+| Evidence Engine           | Converts events into traceable evidence with content hashing              |
+| Graph Engine              | Extracts entities and builds relationships                                |
+| Correlation Engine        | Correlates events using host, temporal, process, and relationship context |
+| Hypothesis Engine         | Generates MAIN, COUNTER, and SUB hypotheses                               |
+| Risk Engine               | Calculates risk score using explicit scoring factors                      |
+| Reporter                  | Generates Markdown, JSON, and text reports                                |
+| Deterministic Rule Engine | Generates rule-based investigation narratives                             |
 
-| Component | Type | Activation |
-|---|---|---|
-| Ollama Provider | Local LLM | `--ai --provider ollama` |
-| Cloud LLM Provider | LLM (OpenAI-compatible) | `--ai --provider cloud` |
-| Multi-Agent Orchestrator | Orchestration pattern | `--ai --provider multi_agent` |
+All deterministic components are designed to be **reproducible and auditable**.
 
-Note: the multi-agent orchestrator is an **orchestration pattern**, not
-a model provider. It coordinates agents (hypothesis, counter, critic,
-report) and can use LLM providers underneath.
+### Optional AI Enhancement Layer
 
-### Graceful Degradation
+AI providers are opt-in and operate as an enhancement layer on top of the deterministic investigation result.
 
-AI failures are isolated from the deterministic investigation pipeline:
+| Component                | Type                  | Activation                    |
+| ------------------------ | --------------------- | ----------------------------- |
+| Ollama Provider          | Local LLM             | `--ai --provider ollama`      |
+| Cloud LLM Provider       | OpenAI-compatible LLM | `--ai --provider cloud`       |
+| Multi-Agent Orchestrator | Agent orchestration   | `--ai --provider multi_agent` |
 
-- Missing API key: the AI provider is skipped.
-- Ollama not running: fallback to the next configured provider.
-- All AI providers unavailable: the system falls back to the
-  deterministic rule engine for narrative.
+The **Multi-Agent Orchestrator is not an LLM provider**. It is an orchestration pattern that coordinates investigation agents such as hypothesis, counter-analysis, critic, and reporting agents. Depending on the configuration, these agents can operate with or without an LLM underneath.
 
-The investigation itself (evidence, correlation, hypotheses, risk score)
-is never dependent on AI availability.
+---
 
-### When AI is Actually Used
+## Graceful Degradation
 
-AI is only invoked when **all** of the following are true:
+AI failures are isolated from the deterministic investigation pipeline.
 
-1. The user explicitly requests it (`--ai --provider ...`).
-2. A provider is available (Ollama running, or API key configured).
-3. A request originates from the user (CLI, API call, or dashboard).
+The core investigation does not depend on AI availability.
 
-Otherwise, the system runs entirely deterministic.
+Typical behavior:
+
+```text
+AI Requested?
+     |
+     +-- No --> Deterministic Investigation
+     |
+     +-- Yes
+           |
+           v
+     Provider Available?
+           |
+       +---+---+
+       |       |
+      Yes      No
+       |       |
+       v       v
+   AI Layer   Fallback
+       |       |
+       +---+---+
+           |
+           v
+Deterministic Investigation Result
+```
+
+Depending on the configured provider:
+
+* Missing API credentials can cause the affected provider to be skipped.
+* An unavailable local LLM provider can trigger fallback behavior.
+* AI provider failures do not invalidate the deterministic investigation result.
+* If AI is unavailable, the deterministic rule engine remains available for narrative generation.
+
+### Important Separation
+
+The following investigation components do **not** require an LLM:
+
+* Evidence extraction
+* Entity extraction
+* Relationship building
+* Correlation
+* Hypothesis generation
+* Risk scoring
+* Deterministic reporting
+
+AI is therefore an **enhancement**, not a prerequisite for investigation.
+
+---
+
+## When AI is Used
+
+AI is only invoked when it is explicitly requested and the selected provider is available.
+
+For example:
+
+```bash
+--ai --provider ollama
+```
+
+or:
+
+```bash
+--ai --provider cloud
+```
+
+Without the `--ai` option, the investigation runs entirely through the deterministic pipeline.
+
+This makes it possible to compare:
+
+```text
+Same Security Events
+        |
+   +----+----+
+   |         |
+   v         v
+No AI      With AI
+   |         |
+   v         v
+Deterministic  Deterministic
+Investigation  Investigation
+   |         +
+   |       AI Enhancement
+   |         |
+   +----+----+
+        |
+        v
+Investigation Case
+```
+
+The deterministic investigation remains the basis for the final case.
 
 ---
 
 ## Features
 
-| Category | Feature | AI? |
-|---|---|---|
-| Ingestion | Wazuh alert, Sysmon event, file/NDJSON | - |
-| Detection | Sigma-like rules, LOLBin registry | - |
-| Graph | Entity extraction, relationship builder | - |
-| Correlation | Pair, cluster, timeline | - |
-| Evidence | SHA-256 content hash, provenance | - |
-| Hypothesis | MAIN, COUNTER, SUB | - |
-| Risk | Multi-factor scoring with breakdown | - |
-| Threat Intel | VirusTotal, AlienVault OTX, MISP adapters | - |
-| Narrative | Deterministic rule engine | - |
-| Narrative | Multi-agent orchestrator | Orchestration |
-| Narrative | Ollama / Cloud LLM | LLM |
-| Feedback | Analyst verdict tracking | - |
-| Simulation | 4 built-in attack scenarios | - |
-| Interface | CLI, Streamlit dashboard, REST API | - |
-| Deployment | Docker, Kubernetes, Helm | - |
-| Observability | Logging, Prometheus metrics, tracing | - |
+| Category            | Feature                   | AI Dependency             |
+| ------------------- | ------------------------- | ------------------------- |
+| Ingestion           | Wazuh alerts              | None                      |
+| Ingestion           | Sysmon events             | None                      |
+| Ingestion           | File / NDJSON events      | None                      |
+| Detection           | Sigma-like rules          | None                      |
+| Detection           | LOLBin registry           | None                      |
+| Graph               | Entity extraction         | None                      |
+| Graph               | Relationship builder      | None                      |
+| Correlation         | Event pair correlation    | None                      |
+| Correlation         | Event clustering          | None                      |
+| Correlation         | Timeline analysis         | None                      |
+| Evidence            | SHA-256 content hashing   | None                      |
+| Evidence            | Evidence provenance       | None                      |
+| Hypothesis          | MAIN hypothesis           | None                      |
+| Hypothesis          | COUNTER hypothesis        | None                      |
+| Hypothesis          | SUB hypothesis            | None                      |
+| Risk                | Multi-factor risk scoring | None                      |
+| Risk                | Risk breakdown            | None                      |
+| Threat Intelligence | VirusTotal adapter        | Optional external service |
+| Threat Intelligence | AlienVault OTX adapter    | Optional external service |
+| Threat Intelligence | MISP adapter              | Optional external service |
+| Narrative           | Deterministic rule engine | None                      |
+| Narrative           | Multi-agent orchestration | Optional                  |
+| Narrative           | Ollama LLM                | Optional                  |
+| Narrative           | Cloud LLM                 | Optional                  |
+| Feedback            | Analyst verdict tracking  | None                      |
+| Simulation          | Built-in attack scenarios | None                      |
+| Interface           | CLI                       | None                      |
+| Interface           | Streamlit dashboard       | None                      |
+| Interface           | REST API                  | None                      |
+| Deployment          | Docker                    | None                      |
+| Deployment          | Kubernetes                | None                      |
+| Deployment          | Helm                      | None                      |
+| Observability       | Application logging       | None                      |
+| Observability       | Prometheus metrics        | None                      |
+| Observability       | Tracing                   | None                      |
 
-Notes:
+### Threat Intelligence
 
-- **Threat Intel**: the three providers are implemented as adapters.
-  Live usage requires configured API keys or endpoints.
-- **AI?** column: blank = deterministic, `Orchestration` = agentic
-  pattern without an LLM underneath, `LLM` = invokes a language model.
+AegisSOC provides adapters for:
+
+* VirusTotal
+* AlienVault OTX
+* MISP
+
+Live threat-intelligence lookups depend on the corresponding external service configuration, credentials, and/or endpoints.
+
+Threat intelligence is therefore an **external enrichment capability**, not a prerequisite for the core investigation pipeline.
 
 ---
 
 ## Quick Start
 
-### Install
-git clone https://github.com/rndy4dty/aegis-soc.git
+### Requirements
+
+* Python 3.x
+* Git
+* Optional:
+
+  * Ollama for local LLM inference
+  * Cloud LLM API credentials
+  * Docker
+  * Kubernetes
+  * Helm
+
+### Installation
+
+```bash
+git clone https://github.com/rndy4ty/aegis-soc.git
 cd aegis-soc
+
 python -m venv .venv
 source .venv/bin/activate
+
 pip install -r requirements.txt
-
-text
-
-### Run Investigation Without AI
-python -m cli investigate
---events examples/application_shimming.json
---title "Application Shimming"
---format markdown
-
-text
-
-No LLM is invoked. The output is fully deterministic.
-
-### Run Investigation With AI Enhancement
-Multi-agent orchestration (deterministic agents, no LLM)
-python -m cli investigate
---events examples/application_shimming.json
---title "Application Shimming"
---format markdown --ai --provider multi_agent
-
-Ollama (local LLM)
-ollama serve # separate terminal
-python -m cli investigate
---events examples/application_shimming.json
---title "Application Shimming"
---format markdown --ai --provider ollama
-
-Cloud LLM (requires API key)
-export AEGIS_CLOUD_LLM_API_KEY="sk-..."
-python -m cli investigate
---events examples/application_shimming.json
---title "Application Shimming"
---format markdown --ai --provider cloud
-
-text
-
-### Attack Simulation
-python -m cli scenario list
-python -m cli scenario run shimming --format text
-python -m cli scenario run powershell_cradle --format markdown
-python -m cli scenario run credential_dump --format text
-python -m cli scenario run lateral_movement --format json
-
-text
-
-### Docker
-cd deploy
-docker compose build
-docker compose run --rm aegis investigate
---events /data/application_shimming.json
---title "Application Shimming" --format text
-
-text
-
-### Dashboard
-pip install -r requirements-dashboard.txt
-streamlit run internal/dashboard/app.py
-
-text
-
-Open http://localhost:8501.
-
-### REST API
-pip install -r requirements-api.txt
-uvicorn api.main:app --reload
-
-text
-
-Open http://localhost:8000/docs for the Swagger UI.
+```
 
 ---
 
-## Example Output
+## Run Investigation Without AI
 
-### Deterministic (no AI)
+```bash
+python -m cli investigate \
+  --events examples/application_shimming.json \
+  --title "Application Shimming" \
+  --format markdown
+```
+
+No LLM is invoked.
+
+The investigation is processed through the deterministic pipeline.
+
+---
+
+## Run Investigation With AI Enhancement
+
+### Multi-Agent Orchestration
+
+```bash
+python -m cli investigate \
+  --events examples/application_shimming.json \
+  --title "Application Shimming" \
+  --format markdown \
+  --ai \
+  --provider multi_agent
+```
+
+### Ollama
+
+Start Ollama in a separate terminal:
+
+```bash
+ollama serve
+```
+
+Then run:
+
+```bash
+python -m cli investigate \
+  --events examples/application_shimming.json \
+  --title "Application Shimming" \
+  --format markdown \
+  --ai \
+  --provider ollama
+```
+
+### Cloud LLM
+
+Configure the required API credential:
+
+```bash
+export AEGIS_CLOUD_LLM_API_KEY="your-api-key"
+```
+
+Then run:
+
+```bash
+python -m cli investigate \
+  --events examples/application_shimming.json \
+  --title "Application Shimming" \
+  --format markdown \
+  --ai \
+  --provider cloud
+```
+
+> Never commit API keys or other secrets to the repository.
+
+---
+
+## Attack Simulation
+
+AegisSOC includes built-in attack scenarios for testing the investigation pipeline.
+
+List available scenarios:
+
+```bash
+python -m cli scenario list
+```
+
+Run Application Shimming simulation:
+
+```bash
+python -m cli scenario run shimming --format text
+```
+
+Run PowerShell cradle simulation:
+
+```bash
+python -m cli scenario run powershell_cradle --format markdown
+```
+
+Run credential dumping simulation:
+
+```bash
+python -m cli scenario run credential_dump --format text
+```
+
+Run lateral movement simulation:
+
+```bash
+python -m cli scenario run lateral_movement --format json
+```
+
+These scenarios are intended for **controlled testing and demonstration of the investigation engine**.
+
+---
+
+## Docker
+
+Build the Docker deployment:
+
+```bash
+cd deploy
+docker compose build
+```
+
+Run an investigation:
+
+```bash
+docker compose run --rm aegis \
+  investigate \
+  --events /data/application_shimming.json \
+  --title "Application Shimming" \
+  --format text
+```
+
+---
+
+## Dashboard
+
+Install the dashboard dependencies:
+
+```bash
+pip install -r requirements-dashboard.txt
+```
+
+Start Streamlit:
+
+```bash
+streamlit run internal/dashboard/app.py
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+The dashboard provides a visual interface for:
+
+* Investigation input
+* Case metadata
+* Risk score
+* Confidence
+* Priority
+* Investigation status
+* Attack timeline
+* Hypotheses
+* Risk breakdown
+* Investigation narrative
+* Report export
+
+---
+
+## REST API
+
+Install API dependencies:
+
+```bash
+pip install -r requirements-api.txt
+```
+
+Start the API:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+The API will be available at:
+
+```text
+http://localhost:8000
+```
+
+Interactive Swagger documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+---
+
+## Example Investigation Output
+
+### Deterministic Investigation
+
+Example:
+
+```text
+Investigation: Application Shimming
+
 Risk Score : 45/100
 Confidence : 0.54
-Priority : CRITICAL
-Status : triaged
+Priority   : CRITICAL
+Status     : triaged
 
-Breakdown:
-evidence +40.0
-correlation +3.3
-hypothesis +13.8
-penalty -12.0
+Risk Breakdown:
+  evidence    +40.0
+  correlation  +3.3
+  hypothesis +13.8
+  penalty     -12.0
 
 Hypotheses:
-[MAIN] Possible persistence via Application Shimming
-(supported, confidence 0.55)
-[COUNTER] Legitimate Windows compatibility activity
-[SUB] Correlated event cluster indicates single activity
+
+[MAIN]
+Possible persistence via Application Shimming
+Status: supported
+Confidence: 0.55
+
+[COUNTER]
+Legitimate Windows compatibility activity
+
+[SUB]
+Correlated event cluster indicates a single activity
 
 Recommended Actions:
 
-Inspect sdbinst.exe command line and parent process
+- Inspect sdbinst.exe command line and parent process.
+- Review Shim Database modifications.
+- Collect missing evidence related to the initiating parent process.
+```
 
-Review Shim Database modifications
+The exact output may vary depending on the input events, rules, configuration, and current implementation.
 
-Collect missing evidence: initiating parent lineage
+### AI-Enhanced Narrative
 
-text
+When AI is enabled, the deterministic investigation result can be supplemented with an AI-generated narrative.
 
-### With AI Narrative (via LLM)
+Example:
+
+```text
 AI Narrative
-Investigasi 'Application Shimming' menganalisis 2 event dari host
-terkait. Sistem mengekstrak 2 evidence dan menemukan 1 korelasi
-antar-event dengan confidence 0.66...
 
-[narrative generated by the LLM]
+The investigation analyzed 2 events from the related host.
+The system identified 2 evidence items and 1 correlation between
+the events.
+
+[narrative generated by the configured AI provider]
 
 Investigation Report: Application Shimming
-[deterministic report as above]
 
-text
+[deterministic investigation report]
+```
+
+The AI narrative does not replace the underlying deterministic evidence, correlations, hypotheses, or risk calculation.
 
 ---
 
 ## Screenshots
 
-### Dashboard - Initial View
+### Dashboard — Initial View
 
-Streamlit UI for visual investigation: input form and case metadata.
+Streamlit interface for starting an investigation and viewing case metadata.
 
 ![AegisSOC Dashboard](docs/images/aegis.png)
 
-### Dashboard - Investigation Result
+### Dashboard — Investigation Result
 
-After running an investigation: metrics cards (risk score, confidence,
-priority, status), attack timeline, and risk breakdown chart.
+Investigation result view containing metrics cards, attack timeline, hypotheses, and risk breakdown.
 
 ![AegisSOC Dashboard Result](docs/images/dashboard-result.png)
 
 ---
 
-## Test
+## Testing
+
+Run the complete test suite:
+
+```bash
 pytest -q
+```
 
-text
+The test count may change as the project evolves.
 
-Run this command to see the current test count in your checkout.
+Current checkout status should be verified directly by running:
 
-Coverage:
+```bash
+pytest -q
+```
 
-- Unit tests for all models, engines, and providers
-- Integration tests for the end-to-end pipeline
-- API tests for all endpoints
-- Deterministic (no flaky tests)
+The test suite covers areas including:
+
+* Domain and Pydantic models
+* Detection engines
+* Evidence processing
+* Correlation engines
+* Graph components
+* Hypothesis generation
+* Risk scoring
+* AI providers
+* Investigation pipeline
+* REST API
+* Simulation scenarios
+* Dashboard-related components
+* Integration workflows
+
+The project is designed to keep the deterministic investigation path reproducible and testable.
 
 ---
 
 ## Project Structure
-aegis-soc/
-├── pkg/models/ # domain models (Pydantic)
-├── internal/
-│ ├── collector/ # Wazuh, Sysmon, file source
-│ ├── detection/ # Sigma-like rules, LOLBin
-│ ├── correlation/ # timeline, process tree
-│ ├── graph/ # entity extractor, resolver, builder
-│ ├── evidence/ # event -> evidence
-│ ├── investigation/ # risk, hypothesis, orchestrator
-│ ├── threat_intel/ # VT, OTX, MISP adapters
-│ ├── ai/ # rule engine, multi-agent, LLM adapters
-│ ├── feedback/ # analyst verdict tracking
-│ ├── simulation/ # attack scenarios
-│ ├── observability/ # logging, metrics, tracing
-│ ├── reporter/ # markdown, JSON, text
-│ └── dashboard/ # Streamlit UI
-├── cli/ # command-line interface
-├── api/ # FastAPI REST endpoints
-├── deploy/ # Docker, K8s, Helm
-├── docs/ # documentation + screenshots
-└── tests/ # test suite
 
-text
+```text
+aegis-soc/
+├── pkg/
+│   └── models/                  # Domain models and Pydantic schemas
+│
+├── internal/
+│   ├── collector/               # Wazuh, Sysmon, and file collectors
+│   ├── detection/               # Sigma-like rules and LOLBin registry
+│   ├── correlation/             # Timeline, event correlation, process context
+│   ├── graph/                   # Entity extraction and relationship building
+│   ├── evidence/                # Event-to-evidence transformation
+│   ├── investigation/           # Investigation orchestration, hypotheses, risk
+│   ├── threat_intel/            # VirusTotal, OTX, and MISP adapters
+│   ├── ai/                      # Rule engine, multi-agent, and LLM adapters
+│   ├── feedback/                # Analyst verdict tracking
+│   ├── simulation/              # Built-in attack scenarios
+│   ├── observability/           # Logging, metrics, and tracing
+│   ├── reporter/                # Markdown, JSON, and text reporters
+│   └── dashboard/               # Streamlit dashboard
+│
+├── cli/                         # Command-line interface
+├── api/                         # FastAPI REST API
+├── deploy/                      # Docker, Kubernetes, and Helm
+├── docs/                        # Documentation and screenshots
+└── tests/                       # Unit, integration, and API tests
+```
+
+---
+
+## Investigation Model
+
+AegisSOC separates **facts, relationships, hypotheses, and risk assessment**.
+
+```text
+Security Event
+      |
+      v
+   Evidence
+      |
+      v
+Entity / Relationship
+      |
+      v
+   Correlation
+      |
+      v
+  Hypotheses
+   /   |   \
+MAIN COUNTER SUB
+      |
+      v
+ Risk Assessment
+      |
+      v
+Investigation Case
+```
+
+This separation allows the investigation result to remain traceable to its underlying evidence.
 
 ---
 
 ## Design Principles
 
-1. **Deterministic first.** The core engine is reproducible and
-   independent of AI availability.
-2. **Evidence-grounded.** Every finding is backed by explicit evidence
-   with a SHA-256 content hash.
-3. **Auditable.** Every risk score has explicit contributing factors.
-4. **AI optional.** The system is fully functional without an LLM.
-5. **Graceful degradation.** AI failures are isolated from the
-   deterministic investigation pipeline.
-6. **Immutable by convention.** Investigation models are treated as
-   immutable after creation.
+### 1. Deterministic First
+
+The core investigation pipeline is reproducible and independent of AI availability.
+
+### 2. Evidence Grounded
+
+Findings are based on explicit evidence rather than unsupported model-generated conclusions.
+
+Evidence can include provenance and SHA-256 content hashes for traceability.
+
+### 3. Auditable
+
+Risk scores expose their contributing factors instead of relying on an opaque score.
+
+### 4. AI Optional
+
+The system remains functional without an LLM.
+
+AI can enhance investigation narratives and analysis but is not required for the core investigation pipeline.
+
+### 5. Graceful Degradation
+
+AI provider failures are isolated from deterministic investigation processing.
+
+The system can continue using deterministic functionality when AI services are unavailable.
+
+### 6. Separation of Concerns
+
+Detection, evidence, correlation, hypothesis generation, risk assessment, reporting, and AI enhancement are separated into distinct components.
+
+### 7. Immutable by Convention
+
+Investigation models are treated as immutable after creation to reduce unintended state changes during processing.
+
+---
+
+## Scope and Safety
+
+AegisSOC is intended for:
+
+* Security monitoring
+* Security event investigation
+* SOC analyst workflows
+* Detection engineering experiments
+* Security research
+* Controlled attack simulation
+* Investigation pipeline development
+
+AegisSOC does **not** automatically execute containment, remediation, or other response actions.
+
+The simulation features should be used only in systems and environments where the user has authorization to perform security testing.
 
 ---
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) - pipeline and layers
-- [Data Model](docs/data_model.md) - schema reference
-- [Demo](docs/demo.md) - walkthrough with sample output
-- [Design Decisions](docs/design.md) - principles and trade-offs
+Additional documentation:
+
+* [Architecture](docs/architecture.md) — investigation pipeline and system layers
+* [Data Model](docs/data_model.md) — domain model and schema reference
+* [Demo](docs/demo.md) — walkthrough and example investigation
+* [Design Decisions](docs/design.md) — design principles and engineering trade-offs
+
+---
+
+## Repository
+
+GitHub repository:
+
+https://github.com/rndy4dty/aegis-soc
 
 ---
 
