@@ -1,10 +1,3 @@
-"""
-Correlation primitives for AegisSOC.
-
-Modul ini HANYA berisi model dan fungsi murni.
-
-Engine TIDAK di sini. Engine ada di internal/correlation/correlation.py.
-"""
 
 from __future__ import annotations
 
